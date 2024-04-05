@@ -1,0 +1,196 @@
+#Meta-analysis by C.S.Campagne and Damien Beillouin
+
+library(metafor)
+library(readxl)
+Data <- read_excel("Raw_data_14-02-24.xlsx")
+View(Data)
+
+# We separeted the meta anlysis depending on the type of data 
+# first % annual change - measurement/prediction
+
+Data<- Data %>% filter(Value_type=="% annual change")
+
+tablem <- table(Data$Service, Data$Driver_change, Data$measurement_prediction)
+tablem
+
+melted_data <- melt(tablem)
+result <- subset(melted_data, value > 1)
+print(result)
+
+Data <- Data %>%   rename("yi"= "Effect_size")
+Data$yi<-as.numeric(as.character(Data$yi))
+
+Data$vi<- max(0,001,abs(Data$yi*0.10))
+
+list_of_model_results <- list()
+for (i in 1:nrow(result)) {
+  Var1 <- result$Var1[i]
+  Var2 <- result$Var2[i]
+  Var3 <- result$Var3[i]
+  value <- result$value[i]
+  
+  filtered_data <-Data %>% dplyr::filter(Service %in% Var1,
+                                         Driver_change%in% Var2,
+                                         measurement_prediction %in% Var3)
+
+  filtered_data$precision<-as.numeric(filtered_data$validity)
+  
+  filtered_data$vi<-max(0,001,abs(filtered_data$yi*0.10))
+  names(filtered_data)[7]<-'yi'
+  filtered_data$yi<-as.numeric( filtered_data$yi)
+
+  resm <- rma.mv(yi ~ 1, vi, W = precision,
+                 random = ~1 | biblio_internal_id, data = filtered_data)
+  
+  model_results <- data.frame(
+    Var1 = Var1,
+    Var2 = Var2,
+    Var3 = Var3,
+    beta = resm$beta,
+    se = resm$se,
+    zval = resm$zval,
+    pval = resm$pval,
+    ci.lb = resm$ci.lb,
+    ci.ub = resm$ci.ub
+  )
+  
+  list_of_model_results[[i]] <- model_results
+}
+
+combined_results <- do.call(rbind, list_of_model_results)
+combined_results$label<- paste(combined_results$Var1,combined_results$Var2, sep="_")
+
+combined_results<- cbind(combined_results,result$value)
+
+
+write.table(combined_results, file = "MA_%annualChange_drivers_services.csv", sep = ";", row.names = TRUE, col.names = NA)
+
+
+###Then Percentage change - measurement/prediction
+Data <- read_excel("Raw_data_14-02-24.xlsx")
+Data<- Data %>% filter(Value_type=="% Total change")
+
+tablem <- table(Data$Service, Data$Driver_change, Data$measurement_prediction)
+tablem
+
+melted_data <- melt(tablem)
+
+result <- subset(melted_data, value > 1)
+
+print(result)
+
+Data <- Data %>%   rename("yi"= "Effect_size")
+
+Data$yi<-as.numeric(as.character(Data$yi))
+
+Data$vi<- max(0,001,abs(Data$yi*0.10))
+
+list_of_model_results <- list()
+for (i in 1:nrow(result)) {
+  Var1 <- result$Var1[i]
+  Var2 <- result$Var2[i]
+  Var3 <- result$Var3[i]
+  value <- result$value[i]
+  
+  filtered_data <-Data %>% dplyr::filter(Service %in% Var1,
+                                         Driver_change%in% Var2,
+                                         measurement_prediction %in% Var3)
+  
+  filtered_data$precision<-as.numeric(filtered_data$validity)
+  
+  
+  filtered_data$vi<-max(0,001,abs(filtered_data$yi*0.10))
+  names(filtered_data)[7]<-'yi'
+  filtered_data$yi<-as.numeric( filtered_data$yi)
+
+  resm <- rma.mv(yi ~ 1, vi, W = precision,
+                 random = ~1 | biblio_internal_id, data = filtered_data)
+  
+  model_results <- data.frame(
+    Var1 = Var1,
+    Var2 = Var2,
+    Var3 = Var3,
+    beta = resm$beta,
+    se = resm$se,
+    zval = resm$zval,
+    pval = resm$pval,
+    ci.lb = resm$ci.lb,
+    ci.ub = resm$ci.ub
+  )
+  
+  list_of_model_results[[i]] <- model_results
+}
+
+combined_results <- do.call(rbind, list_of_model_results)
+combined_results$label<- paste(combined_results$Var1,combined_results$Var2, sep="_")
+
+combined_results<- cbind(combined_results,result$value)
+
+write.table(combined_results, file = "MA_PercentageTotalChange_drivers_services14.02.2023.csv", sep = ";", row.names = TRUE, col.names = NA)
+
+
+## Finally the -5 to 5; value of change - measurement/prediction
+Data <- read_excel("Raw_data_14-02-24.xlsx")
+
+Data<- Data %>% filter(Value_type=="-5 to 5; value of change")
+
+tablem <- table(Data$Service, Data$Driver_change, Data$measurement_prediction)
+tablem
+
+melted_data <- melt(tablem)
+
+result <- subset(melted_data, value > 1)
+
+print(result)
+
+Data <- Data %>%   rename("yi"= "Effect_size")
+
+Data$yi<-as.numeric(as.character(Data$yi))
+
+Data$vi<- max(0,001,abs(Data$yi*0.10))
+
+list_of_model_results <- list()
+for (i in 1:nrow(result)) {
+  Var1 <- result$Var1[i]
+  Var2 <- result$Var2[i]
+  Var3 <- result$Var3[i]
+  value <- result$value[i]
+  
+  filtered_data <-Data %>% dplyr::filter(Service %in% Var1,
+                                         Driver_change%in% Var2,
+                                         measurement_prediction %in% Var3)
+
+  filtered_data$precision<-as.numeric(filtered_data$validity)
+  
+  
+  filtered_data$vi<-max(0,001,abs(filtered_data$yi*0.10))
+  names(filtered_data)[7]<-'yi'
+  filtered_data$yi<-as.numeric( filtered_data$yi)
+
+  resm <- rma.mv(yi ~ 1, vi, W = precision,
+                 random = ~1 | biblio_internal_id, data = filtered_data)
+  
+  model_results <- data.frame(
+    Var1 = Var1,
+    Var2 = Var2,
+    Var3 = Var3,
+    beta = resm$beta,
+    se = resm$se,
+    zval = resm$zval,
+    pval = resm$pval,
+    ci.lb = resm$ci.lb,
+    ci.ub = resm$ci.ub
+  )
+  
+  list_of_model_results[[i]] <- model_results
+}
+rstudent(resm)
+
+combined_results <- do.call(rbind, list_of_model_results)
+combined_results$label<- paste(combined_results$Var1,combined_results$Var2, sep="_")
+
+combined_results<- cbind(combined_results,result$value)
+
+write.table(combined_results, file = "MA_SemiQuantitative_drivers_services.csv", sep = ";", row.names = TRUE, col.names = NA)
+
+
