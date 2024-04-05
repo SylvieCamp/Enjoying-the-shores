@@ -1,0 +1,354 @@
+##### Probabilistic model ####
+
+install.packages("DIZutils")  
+install.packages("tidyr")      
+install.packages("cowplot")     
+install.packages("magrittr")    
+install.packages("ggplot2")     
+install.packages("ggpubr")      
+install.packages("colourpicker") 
+install.packages('ordinal')
+install.packages('parallel')
+install.packages('doParallel')
+install.packages('reshape2')
+install.packages('xtable')
+install.packages('magrittr')
+install.packages('dplyr')
+install.packages('forcats')
+install.packages("MASS")
+install.packages("ordinal")
+install.packages("emmeans")
+install.packages("coda")
+install.packages('ggpubr')
+
+library("DIZutils")  
+library(tidyr)       
+library(cowplot)     
+library(magrittr)    
+library(ggplot2)     
+library(ggpubr)      
+library(colourpicker) 
+library(ordinal)
+library(parallel)
+library(doParallel)
+library(reshape2)
+library(xtable)
+library(magrittr)
+library(dplyr)
+library(forcats)
+library(MASS)
+library(ordinal)
+library(emmeans)
+library(coda)
+library(ggplot2)
+library(ggpubr)
+library(readxl)
+
+Data <- read_excel("Raw_data_14-02-24.xlsx")
+View(Data)
+ES<- Data
+
+Data <- ES %>%
+  rename("measurement" = "measurement_prediction",
+         "Vote" = "Vote_counting") %>%
+  mutate(Vote = tolower(Vote)) %>%
+  mutate(Vote = forcats::fct_recode(Vote,
+                                    "A_negative" = "negative",
+                                    "D_positive" = "positive",
+                                    "B_null"     = "neutral",
+                                    "C_null2"    = "ambiguous")) %>%
+  mutate(Vote = factor(Vote))
+Data$Vote <- factor(Data$Vote, ordered = TRUE, levels = c("A_negative", "B_null", "C_null2", "D_positive"))
+Data$Vote
+
+table_contingence <- table(Data$Vote, Data$Driver_change)
+table_contingence
+table_contingence2 <- table(Data$Vote, Data$Service)
+table_contingence2
+
+
+
+############################ Probabilistic model for the effect of Driver_of_change
+
+omod1 <- clm(Vote ~  Driver_change,
+             data = Data,
+             Hess = T, nAGQ = 1, link = 'logit')
+??clm
+ref_grid(omod1, mode = "lin")
+AIC(omod1)
+summary(omod1)
+
+# Calculate predicted probabilities
+e <- emmeans(omod1, ~ Vote | Driver_change, mode = "prob")
+DataR <- summary(e)
+
+# Separate positive and negative effects
+DataPOS <- DataR %>% filter(Vote == "D_positive") %>% mutate(effect = "POS")
+DataNEG <- DataR %>% filter(Vote == "A_negative") %>% mutate(effect = "NEG")
+DataAMB <- DataR %>% filter(Vote == "B_null") %>% mutate(effect = "AMB")
+DataNEU <- DataR %>% filter(Vote == "C_null2") %>% mutate(effect = "NEU")
+DATA <- rbind(DataPOS, DataNEG,DataAMB,DataNEU)
+DATA
+
+ORDER <- DATA %>%
+  filter(effect == "POS") %>% 
+  arrange(-prob) %>% 
+  mutate(Order = row_number()) %>%
+  ungroup() %>%
+  dplyr::select(Order, Driver_change)
+
+DATA<-left_join(DATA,ORDER)
+
+# Calculate the count of studies per Driver_of_change category
+category_counts <- Data %>%
+  group_by(Driver_change) %>%
+  summarise(count = n()) %>%
+  ungroup()
+
+DATA <- left_join(DATA, category_counts)
+DATA
+
+write.table(DATA, file = "probability_drivers.csv", sep = ";", row.names = TRUE, col.names = NA)
+
+
+############################ Probabilistic model for the effect of Service
+
+omod1 <- clm(Vote ~  Service,
+             data = Data,
+             Hess = T, nAGQ = 1, link = 'logit')
+ref_grid(omod1, mode = "lin")
+AIC(omod1)
+summary(omod1)
+
+# Calculate predicted probabilities
+e <- emmeans(omod1, ~ Vote | Service, mode = "prob")
+DataR <- summary(e)
+
+# Separate positive and negative effects
+DataPOS <- DataR %>% filter(Vote == "D_positive") %>% mutate(effect = "POS")
+DataNEG <- DataR %>% filter(Vote == "A_negative") %>% mutate(effect = "NEG")
+DataAMB <- DataR %>% filter(Vote == "B_null") %>% mutate(effect = "AMB")
+DataNEU <- DataR %>% filter(Vote == "C_null2") %>% mutate(effect = "NEU")
+DATA <- rbind(DataPOS, DataNEG,DataAMB,DataNEU)
+DATA
+ORDER <- DATA %>%
+  filter(effect == "POS") %>% 
+  arrange(-prob) %>% 
+  mutate(Order = row_number()) %>%
+  ungroup() %>%
+  dplyr::select(Order, Service)
+
+DATA<-left_join(DATA,ORDER)
+
+# Calculate the count of studies per Driver_of_change category
+category_counts <- Data %>%
+  group_by(Service) %>%
+  summarise(count = n()) %>%
+  ungroup()
+
+DATA2 <- left_join(DATA, category_counts)
+DATA2
+
+write.table(DATA2, file = "probability_Service.csv", sep = ";", row.names = TRUE, col.names = NA)
+
+
+############################  Probabilistic model for the effect of Service and Driver of change
+######## For management 
+omod2 <- clm(Vote ~  Service,
+             data = Data %>% filter(Driver_change == "Management"),
+             Hess = T, nAGQ = 1, link = 'logit')
+ref_grid(omod2, mode = "lin")
+AIC(omod2)
+summary(omod2)
+
+
+e<-emmeans(omod2, ~ Vote |Service, mode = "prob")
+DataR <- summary(e)
+DataR
+
+DataR <- summary(e)
+DataPOS <- DataR %>% filter(Vote == "D_positive") %>% mutate(effect = "POS")
+DataNEG <- DataR %>% filter(Vote == "A_negative") %>% mutate(effect = "NEG")
+DataAMB <- DataR %>% filter(Vote == "B_null") %>% mutate(effect = "AMB")
+DataNEU <- DataR %>% filter(Vote == "C_null2") %>% mutate(effect = "NEU")
+DATA <- rbind(DataPOS, DataNEG,DataAMB,DataNEU)
+DATA
+
+category_counts <- Data %>%
+  group_by(Driver_change,Service) %>%
+  summarise(count = n()) %>%
+  ungroup()
+
+DATA3<-left_join(DATA,category_counts)
+DATA3$count[is.na(DATA$count)]<-0
+DATA3
+write.table(DATA3, file = "probability_drivers_services_management.csv", sep = ";",row.names = TRUE, col.names = NA)
+
+######## For Pollution 
+omod2 <- clm(Vote ~  Service,
+             data = Data %>% filter(Driver_change == "Pollution"),
+             Hess = T, nAGQ = 1, link = 'logit')
+ref_grid(omod2, mode = "lin")
+AIC(omod2)
+summary(omod2)
+
+
+e<-emmeans(omod2, ~ Vote |Service, mode = "prob")
+DataR <- summary(e)
+DataR
+
+DataR <- summary(e)
+DataPOS <- DataR %>% filter(Vote == "D_positive") %>% mutate(effect = "POS")
+DataNEG <- DataR %>% filter(Vote == "A_negative") %>% mutate(effect = "NEG")
+DataAMB <- DataR %>% filter(Vote == "B_null") %>% mutate(effect = "AMB")
+DataNEU <- DataR %>% filter(Vote == "C_null2") %>% mutate(effect = "NEU")
+DATA <- rbind(DataPOS, DataNEG,DataAMB,DataNEU)
+DATA
+
+category_counts <- Data %>%
+  group_by(Driver_change,Service) %>%
+  summarise(count = n()) %>%
+  ungroup()
+
+DATA3<-left_join(DATA,category_counts)
+DATA3$count[is.na(DATA$count)]<-0
+DATA3
+write.table(DATA3, file = "probability_drivers_services_pollution.csv", sep = ";",row.names = TRUE, col.names = NA)
+
+
+######## For LSUC 
+omod2 <- clm(Vote ~  1,
+             data = Data %>% filter(Driver_change == "LSUC" & Service == "Cultural"),
+             Hess = T, nAGQ = 1, link = 'logit')
+ref_grid(omod2, mode = "lin")
+AIC(omod2)
+summary(omod2)
+
+
+e<-emmeans(omod2, ~ Vote |1, mode = "prob")
+DataR <- summary(e)
+DataR
+
+DataR <- summary(e)
+DataPOS <- DataR %>% filter(Vote == "D_positive") %>% mutate(effect = "POS")
+DataNEG <- DataR %>% filter(Vote == "A_negative") %>% mutate(effect = "NEG")
+DataAMB <- DataR %>% filter(Vote == "B_null") %>% mutate(effect = "AMB")
+DataNEU <- DataR %>% filter(Vote == "C_null2") %>% mutate(effect = "NEU")
+DATA <- rbind(DataPOS, DataNEG,DataAMB,DataNEU)
+DATA
+
+write.table(DATA, file = "probability_drivers_services.LUSC.cultural.csv", sep = ";",row.names = TRUE, col.names = NA)
+
+omod2 <- clm(Vote ~  1,
+             data = Data %>% filter(Driver_change == "LSUC" & Service == "Aesthetic"),
+             Hess = T, nAGQ = 1, link = 'logit')
+ref_grid(omod2, mode = "lin")
+AIC(omod2)
+summary(omod2)
+
+
+e<-emmeans(omod2, ~ Vote |1, mode = "prob")
+DataR <- summary(e)
+DataR
+
+DataR <- summary(e)
+DataPOS <- DataR %>% filter(Vote == "D_positive") %>% mutate(effect = "POS")
+DataNEG <- DataR %>% filter(Vote == "A_negative") %>% mutate(effect = "NEG")
+DataAMB <- DataR %>% filter(Vote == "B_null") %>% mutate(effect = "AMB")
+DataNEU <- DataR %>% filter(Vote == "C_null2") %>% mutate(effect = "NEU")
+DATA <- rbind(DataPOS, DataNEG,DataAMB,DataNEU)
+DATA
+
+write.table(DATA, file = "probability_drivers_services.LUSC.Aesthetic.csv", sep = ";",row.names = TRUE, col.names = NA)
+
+
+omod2 <- clm(Vote ~  1,
+             data = Data %>% filter(Driver_change == "LSUC" & Service == "Recreation"),
+             Hess = T, nAGQ = 1, link = 'logit')
+ref_grid(omod2, mode = "lin")
+AIC(omod2)
+summary(omod2)
+
+
+e<-emmeans(omod2, ~ Vote |1, mode = "prob")
+DataR <- summary(e)
+DataR
+
+DataR <- summary(e)
+DataPOS <- DataR %>% filter(Vote == "D_positive") %>% mutate(effect = "POS")
+DataNEG <- DataR %>% filter(Vote == "A_negative") %>% mutate(effect = "NEG")
+DataAMB <- DataR %>% filter(Vote == "B_null") %>% mutate(effect = "AMB")
+DataNEU <- DataR %>% filter(Vote == "C_null2") %>% mutate(effect = "NEU")
+DATA <- rbind(DataPOS, DataNEG,DataAMB,DataNEU)
+DATA
+
+write.table(DATA, file = "probability_drivers_services.LUSC.Recreation05-03-24.csv", sep = ";",row.names = TRUE, col.names = NA)
+
+
+omod2 <- clm(Vote ~  1,
+             data = Data %>% filter(Driver_change == "LSUC" & Service == "Scientific"),
+             Hess = T, nAGQ = 1, link = 'logit')
+ref_grid(omod2, mode = "lin")
+AIC(omod2)
+summary(omod2)
+
+
+e<-emmeans(omod2, ~ Vote |1, mode = "prob")
+DataR <- summary(e)
+DataR
+
+DataR <- summary(e)
+DataPOS <- DataR %>% filter(Vote == "D_positive") %>% mutate(effect = "POS")
+DataNEG <- DataR %>% filter(Vote == "A_negative") %>% mutate(effect = "NEG")
+DataAMB <- DataR %>% filter(Vote == "B_null") %>% mutate(effect = "AMB")
+DataNEU <- DataR %>% filter(Vote == "C_null2") %>% mutate(effect = "NEU")
+DATA <- rbind(DataPOS, DataNEG,DataAMB,DataNEU)
+DATA
+
+write.table(DATA, file = "probability_drivers_services.LUSC.Scientific.csv", sep = ";",row.names = TRUE, col.names = NA)
+
+######## For Direct-exploitation - recreation
+omod2 <- clm(Vote ~  1,
+             data = Data %>% filter(Driver_change == "Direct-exploitation" & Service == "Recreation"),
+             Hess = T, nAGQ = 1, link = 'logit')
+ref_grid(omod2, mode = "lin")
+AIC(omod2)
+summary(omod2)
+
+
+e<-emmeans(omod2, ~ Vote |1, mode = "prob")
+DataR <- summary(e)
+DataR
+
+DataR <- summary(e)
+DataPOS <- DataR %>% filter(Vote == "D_positive") %>% mutate(effect = "POS")
+DataNEG <- DataR %>% filter(Vote == "A_negative") %>% mutate(effect = "NEG")
+DataAMB <- DataR %>% filter(Vote == "B_null") %>% mutate(effect = "AMB")
+DataNEU <- DataR %>% filter(Vote == "C_null2") %>% mutate(effect = "NEU")
+DATA <- rbind(DataPOS, DataNEG,DataAMB,DataNEU)
+DATA
+
+write.table(DATA, file = "probability_drivers_services.Direct-exploitation.Recreation.csv", sep = ";",row.names = TRUE, col.names = NA)
+
+######## For Climate change  - recreation
+omod2 <- clm(Vote ~  1,
+             data = Data %>% filter(Driver_change == "Climate-change" & Service == "Recreation"),
+             Hess = T, nAGQ = 1, link = 'logit')
+ref_grid(omod2, mode = "lin")
+AIC(omod2)
+summary(omod2)
+
+
+e<-emmeans(omod2, ~ Vote |1, mode = "prob")
+DataR <- summary(e)
+DataR
+
+DataR <- summary(e)
+DataPOS <- DataR %>% filter(Vote == "D_positive") %>% mutate(effect = "POS")
+DataNEG <- DataR %>% filter(Vote == "A_negative") %>% mutate(effect = "NEG")
+DataAMB <- DataR %>% filter(Vote == "B_null") %>% mutate(effect = "AMB")
+DataNEU <- DataR %>% filter(Vote == "C_null2") %>% mutate(effect = "NEU")
+DATA <- rbind(DataPOS, DataNEG,DataAMB,DataNEU)
+DATA
+
+write.table(DATA, file = "probability_drivers_services.Climate-change.Recreation.csv", sep = ";",row.names = TRUE, col.names = NA)
